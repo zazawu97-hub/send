@@ -115,13 +115,97 @@ const DEFAULT_DEPARTMENTS = [
       { id: "acqua-grande-friz", name: "Acqua grande frizzante" },
     ],
   },
+  {
+    id: "elfbar-uag", name: "ELFBAR USA E GETTA", units: ["stecca"],
+    products: [
+      { id: "elfuag-menthol", name: "Menthol" },
+      { id: "elfuag-strawberry-ice", name: "Strawberry Ice" },
+      { id: "elfuag-blueberry-ice", name: "Blueberry Ice" },
+      { id: "elfuag-cherry", name: "Cherry" },
+      { id: "elfuag-grape", name: "Grape" },
+      { id: "elfuag-link-lemonade", name: "Link Lemonade" },
+      { id: "elfuag-watermelon", name: "Watermelon" },
+      { id: "elfuag-kiwi-passion-guava", name: "Kiwi Passion Fruit Guava" },
+      { id: "elfuag-blu-razz-lemonade", name: "Blu Razz Lemonade" },
+    ],
+  },
+  {
+    id: "elfbar-ricariche", name: "ELFBAR RICARICHE", units: ["stecca"],
+    products: [
+      { id: "elfric-coca-cola", name: "Coca Cola" },
+      { id: "elfric-cream-tabacco", name: "Cream Tabacco" },
+      { id: "elfric-watermelon", name: "Watermelon" },
+      { id: "elfric-pear", name: "Pear" },
+      { id: "elfric-banana", name: "Banana" },
+      { id: "elfric-pink-lemonade", name: "Pink Lemonade" },
+      { id: "elfric-tropical-fruit", name: "Tropical Fruit" },
+      { id: "elfric-blueberry-cotton-candy", name: "Blueberry Cotton Candy" },
+      { id: "elfric-pineapple-lemon-soda", name: "Pineapple Lemon Soda" },
+      { id: "elfric-lemon-mint", name: "Lemon Mint" },
+      { id: "elfric-raspberry-watermelon", name: "Raspberry Watermelon" },
+      { id: "elfric-juicy-peach", name: "Juicy Peach" },
+      { id: "elfric-watermelon-mojito", name: "Watermelon Mojito" },
+      { id: "elfric-blu-razz-lemonade", name: "Blu Razz Lemonade" },
+      { id: "elfric-blueberry", name: "Blueberry" },
+    ],
+  },
+  {
+    id: "kiwi-uag", name: "KIWI USA E GETTA", units: ["stecca"],
+    products: [
+      { id: "kiwiuag-tangerine-ice", name: "Tangerine Ice" },
+      { id: "kiwiuag-mint-cream", name: "Mint Cream" },
+      { id: "kiwiuag-grape-ice", name: "Grape Ice" },
+      { id: "kiwiuag-strawberry-ice", name: "Strawberry Ice" },
+      { id: "kiwiuag-watermelon-ice", name: "Watermelon Ice" },
+      { id: "kiwiuag-banana-ice", name: "Banana Ice" },
+      { id: "kiwiuag-blueberry-ice", name: "Blueberry Ice" },
+    ],
+  },
+  {
+    id: "kiwi-ricariche", name: "KIWI RICARICHE", units: ["stecca"],
+    products: [
+      { id: "kiwiric-watermelon-ice", name: "Watermelon Ice" },
+      { id: "kiwiric-grape-ice", name: "Grape Ice" },
+      { id: "kiwiric-blue-razz-lemonade", name: "Blue Razz Lemonade" },
+      { id: "kiwiric-blueberry-ice", name: "Blueberry Ice" },
+      { id: "kiwiric-banana-ice", name: "Banana Ice" },
+      { id: "kiwiric-tangerine-ice", name: "Tangerine Ice" },
+      { id: "kiwiric-strawberry-ice", name: "Strawberry Ice" },
+      { id: "kiwiric-strawberry-lime", name: "Strawberry Lime" },
+      { id: "kiwiric-cherry-ice", name: "Cherry Ice" },
+      { id: "kiwiric-mango-ice", name: "Mango Ice" },
+      { id: "kiwiric-guava-ice", name: "Guava Ice" },
+      { id: "kiwiric-cotton-candy", name: "Cotton Candy" },
+      { id: "kiwiric-cola-ice", name: "Cola Ice" },
+      { id: "kiwiric-mint-cream", name: "Mint Cream" },
+      { id: "kiwiric-pink-lemonade", name: "Pink Lemonade" },
+      { id: "kiwiric-kiwi-maracuja", name: "Kiwi Maracuja" },
+    ],
+  },
+  {
+    id: "relx-waka", name: "RICARICHE RELX E WAKA", units: ["stecca"],
+    products: [
+      { id: "rw-waka-strawberry-scoop", name: "Waka Strawberry Scoop" },
+      { id: "rw-waka-pink-lemonade", name: "Waka Pink Lemonade" },
+      { id: "rw-waka-watermelon", name: "Waka Watermelon" },
+      { id: "rw-waka-lemon-lime", name: "Waka Lemon Lime" },
+      { id: "rw-waka-spearmint", name: "Waka Spearmint" },
+      { id: "rw-waka-peach-ice", name: "Waka Peach Ice" },
+      { id: "rw-waka-banana-ice", name: "Waka Banana Ice" },
+      { id: "rw-waka-cherry-dark-sparkle", name: "Waka Cherry Dark Sparkle" },
+      { id: "rw-waka-strawberry-kiwi", name: "Waka Strawberry Kiwi" },
+      { id: "rw-relx-fresh-red", name: "Relx Fresh Red" },
+      { id: "rw-relx-menthol-plus", name: "Relx Menthol Plus" },
+      { id: "rw-relx-golden-tabacco", name: "Relx Golden Tabacco" },
+    ],
+  },
 ];
 
 // Alzare quando si aggiungono prodotti/reparti ai default: chi ha già la lista
 // salvata riceve i nuovi elementi al prossimo avvio (senza perdere le sue modifiche).
-const DEFAULTS_VERSION = 2;
+const DEFAULTS_VERSION = 3;
 
-const UNIT_LABELS = { cassa: "Casse", bottiglia: "Bottiglie" };
+const UNIT_LABELS = { cassa: "Casse", bottiglia: "Bottiglie", stecca: "Stecche" };
 const LS_NAME = "send-name";
 const lsInvKey = () => "send-inv-" + BAR_ID;     // cache lista per bar
 const lsOrderKey = () => "send-order-" + BAR_ID; // ordine in corso per bar
@@ -372,7 +456,7 @@ document.getElementById("btn-generate-pdf").addEventListener("click", generatePD
 async function generatePDF() {
   const compiler = nameInput.value.trim();
   if (!compiler) {
-    toast("Scrivi il tuo nome prima di generare il PDF");
+    toast("Scrivi il nome del bar prima di generare il PDF");
     nameInput.focus();
     return;
   }
@@ -392,7 +476,7 @@ async function generatePDF() {
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
   doc.text(`Data: ${dateStr}`, 14, 29);
-  doc.text(`Compilato da: ${compiler}`, 14, 35);
+  doc.text(`Bar: ${compiler}`, 14, 35);
 
   let y = 44;
   state.departments.forEach((dept) => {
