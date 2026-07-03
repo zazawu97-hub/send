@@ -5,12 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#1a1a2e">
   <title>SEND — Ordine magazzino</title>
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
-  <!-- SCHERMATA SETUP (primo accesso senza codice) -->
+  <!-- SCHERMATA BLOCCO (link base senza codice bar) -->
+  <div id="locked-screen" class="setup-screen hidden">
+    <div class="setup-card">
+      <h1 class="setup-logo">SEND</h1>
+      <h2>Serve un link personale</h2>
+      <p>Questa app funziona con un link dedicato alla tua attività.<br>Chiedi il tuo link al gestore.</p>
+    </div>
+  </div>
+
+  <!-- SCHERMATA SETUP (creazione spazio, riservata al gestore) -->
   <div id="setup-screen" class="setup-screen hidden">
     <div class="setup-card">
       <h1 class="setup-logo">SEND</h1>
@@ -75,6 +84,6 @@
     <p class="version">SEND v1.0</p>
   </main>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

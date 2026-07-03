@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>SEND — Dashboard gestore</title>
+  <link rel="stylesheet" href="style.css?v=10">
+  <style>
+    .admin-wrap { padding: 16px; max-width: 900px; margin: 0 auto; }
+    .bar-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .bar-card h3 { font-size: 17px; margin-bottom: 8px; }
+    .bar-stats { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
+    .bar-stats b { color: var(--text); font-size: 16px; display: block; }
+    .totali { display: flex; gap: 12px; margin-bottom: 18px; }
+    .tot-box {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      text-align: center;
+    }
+    .tot-box b { font-size: 26px; display: block; color: var(--accent); }
+    .tot-box span { font-size: 12px; color: var(--text-dim); }
+    .admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .admin-actions .btn-secondary { padding: 9px 13px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <!-- Blocco accesso -->
+  <div id="gate" class="setup-screen">
+    <div class="setup-card">
+      <h1 class="setup-logo">SEND</h1>
+      <h2>Dashboard gestore</h2>
+      <p>Area riservata. Inserisci la chiave di accesso.</p>
+      <input type="password" id="gate-key" placeholder="Chiave" autocomplete="off">
+      <button id="gate-go" type="button" class="btn-primary full-width">Entra</button>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <h1>SEND</h1>
+    <span class="topbar-sub">Dashboard gestore</span>
+  </header>
+
+  <div class="admin-wrap">
+    <div class="totali">
+      <div class="tot-box"><b id="tot-bar">—</b><span>Bar attivi</span></div>
+      <div class="tot-box"><b id="tot-visite">—</b><span>Accessi totali</span></div>
+      <div class="tot-box"><b id="tot-visite-7">—</b><span>Accessi ultimi 7 giorni</span></div>
+    </div>
+    <div id="bar-list"><p class="hint">Caricamento…</p></div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://pwuebotkdxobjvfoepjz.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_LEGQHUZEAH-ET0582OWRKA_r51GJpEf";
+    const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+    const OWNER_HASH = "2def2aae880cbb34ff66dba22a7e2f683335126dd78884127c536fb3805ebce2";
+    const APP_URL = location.origin + location.pathname.replace(/admin\.html$/, "");
+
+    async function sha256hex(text) {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function tryKey(k) {
+      if (!k) return false;
+      if ((await sha256hex(k)) !== OWNER_HASH) return false;
+      document.getElementById("gate").classList.add("hidden");
+      loadDashboard();
+      return true;
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return "mai";
+      const d = new Date(iso);
+      return d.toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" }) +
+        " " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    async function loadDashboard() {
+      const list = document.getElementById("bar-list");
+      try {
+        const [barsRes, visitsRes] = await Promise.all([
+          fetch(`${SUPABASE_URL}/rest/v1/bar_inventories?select=bar_id,updated_at&order=updated_at.desc`, { headers: SB_HEADERS }),
+          fetch(`${SUPABASE_URL}/rest/v1/bar_visits?select=bar_id,visited_at&order=visited_at.desc&limit=10000`, { headers: SB_HEADERS }),
+        ]);
+        const bars = await barsRes.json();
+        const visits = visitsRes.ok ? await visitsRes.json() : [];
+
+        const now = Date.now();
+        const week = 7 * 24 * 3600 * 1000;
+        const stats = {};
+        visits.forEach((v) => {
+          const s = (stats[v.bar_id] = stats[v.bar_id] || { tot: 0, last7: 0, last: null });
+          s.tot++;
+          if (now - new Date(v.visited_at).getTime() < week) s.last7++;
+          if (!s.last) s.last = v.visited_at; // già ordinate desc
+        });
+
+        document.getElementById("tot-bar").textContent = bars.length;
+        document.getElementById("tot-visite").textContent = visits.length;
+        document.getElementById("tot-visite-7").textContent = visits.filter((v) => now - new Date(v.visited_at).getTime() < week).length;
+
+        list.innerHTML = "";
+        if (!bars.length) {
+          list.innerHTML = '<p class="hint">Nessun bar ancora creato.</p>';
+          return;
+        }
+        bars.forEach((b) => {
+          const s = stats[b.bar_id] || { tot: 0, last7: 0, last: null };
+          const link = `${APP_URL}?bar=${encodeURIComponent(b.bar_id)}`;
+          const card = document.createElement("div");
+          card.className = "bar-card";
+          card.innerHTML = `
+            <h3>${b.bar_id}</h3>
+            <div class="bar-stats">
+              <div><b>${s.tot}</b>accessi totali</div>
+              <div><b>${s.last7}</b>ultimi 7 giorni</div>
+              <div><b style="font-size:13px">${fmtDate(s.last)}</b>ultimo accesso</div>
+              <div><b style="font-size:13px">${fmtDate(b.updated_at)}</b>ultima modifica lista</div>
+            </div>
+            <div class="admin-actions">
+              <button class="btn-secondary" data-link="${link}">📋 Copia link</button>
+              <a class="btn-secondary" style="text-decoration:none" href="${link}" target="_blank">Apri</a>
+            </div>`;
+          card.querySelector("[data-link]").addEventListener("click", async (e) => {
+            try {
+              await navigator.clipboard.writeText(e.target.dataset.link);
+              e.target.textContent = "✓ Copiato";
+              setTimeout(() => (e.target.textContent = "📋 Copia link"), 1500);
+            } catch {
+              prompt("Copia il link:", e.target.dataset.link);
+            }
+          });
+          list.appendChild(card);
+        });
+      } catch (err) {
+        list.innerHTML = '<p class="hint">Errore di caricamento: ' + err.message + "</p>";
+      }
+    }
+
+    // Accesso: ?k= nell'URL oppure campo password
+    const urlKey = new URLSearchParams(location.search).get("k") || "";
+    tryKey(urlKey);
+    document.getElementById("gate-go").addEventListener("click", async () => {
+      const ok = await tryKey(document.getElementById("gate-key").value.trim());
+      if (!ok) alert("Chiave errata");
+    });
+    document.getElementById("gate-key").addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        const ok = await tryKey(e.target.value.trim());
+        if (!ok) alert("Chiave errata");
+      }
+    });
+  </script>
+</body>
+</html>

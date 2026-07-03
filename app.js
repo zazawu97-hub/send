@@ -31,6 +31,15 @@ const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY
 const urlParams = new URLSearchParams(location.search);
 let BAR_ID = slugify(urlParams.get("bar") || "");
 
+// Hash SHA-256 del token del gestore: solo chi ha il token (non nel repo)
+// può creare nuovi spazi bar o aprire la dashboard.
+const OWNER_HASH = "2def2aae880cbb34ff66dba22a7e2f683335126dd78884127c536fb3805ebce2";
+
+async function sha256hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function slugify(s) {
   return String(s)
     .toLowerCase()
@@ -297,6 +306,16 @@ async function pushToServer() {
   } catch {
     /* offline: la copia locale resta valida, si ripush al prossimo salvataggio */
   }
+}
+
+// Registra un accesso del bar (fire-and-forget: offline fallisce in silenzio)
+function logVisit() {
+  if (!BAR_ID) return;
+  fetch(`${SUPABASE_URL}/rest/v1/bar_visits`, {
+    method: "POST",
+    headers: { ...SB_HEADERS, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ bar_id: BAR_ID }),
+  }).catch(() => {});
 }
 
 // Scarica la lista del bar dal server. Se la riga non esiste, la crea coi default.
@@ -771,6 +790,10 @@ function showSetup() {
   }
 }
 
+function showLocked() {
+  document.getElementById("locked-screen").classList.remove("hidden");
+}
+
 function renderAll() {
   renderOrder();
   renderEdit();
@@ -779,9 +802,16 @@ function renderAll() {
 // ===== Avvio =====
 async function init() {
   if (!BAR_ID) {
-    showSetup();
+    // Creazione spazi riservata al gestore: serve ?crea=<token>
+    const creaToken = urlParams.get("crea") || "";
+    if (creaToken && (await sha256hex(creaToken)) === OWNER_HASH) {
+      showSetup();
+    } else {
+      showLocked();
+    }
     return;
   }
+  logVisit();
   // Mostra il codice del bar nell'intestazione e nelle impostazioni
   document.getElementById("topbar-bar").textContent = BAR_ID;
   document.getElementById("bar-code-label").textContent = BAR_ID;
