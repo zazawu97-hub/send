@@ -1,5 +1,26 @@
 /* SEND — Ordine magazzino */
 
+// ===== Rilevatore errori a schermo (diagnostica) =====
+// Mostra in cima alla pagina qualsiasi errore JS, così è visibile anche su mobile.
+window.addEventListener("error", (e) => {
+  showFatal((e.error && e.error.stack) || e.message || "Errore sconosciuto");
+});
+window.addEventListener("unhandledrejection", (e) => {
+  showFatal("Promise: " + ((e.reason && e.reason.message) || e.reason || "?"));
+});
+function showFatal(msg) {
+  let box = document.getElementById("fatal-box");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "fatal-box";
+    box.style.cssText =
+      "position:fixed;top:0;left:0;right:0;z-index:9999;background:#b00020;color:#fff;" +
+      "font:12px/1.4 monospace;padding:10px;white-space:pre-wrap;word-break:break-word;max-height:50vh;overflow:auto";
+    (document.body || document.documentElement).appendChild(box);
+  }
+  box.textContent = "SEND errore:\n" + msg;
+}
+
 // ===== Configurazione Supabase =====
 // La publishable key è pensata per stare nel client (rispetta le policy RLS della tabella).
 const SUPABASE_URL = "https://pwuebotkdxobjvfoepjz.supabase.co";
