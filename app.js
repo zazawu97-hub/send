@@ -31,14 +31,6 @@ const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY
 const urlParams = new URLSearchParams(location.search);
 let BAR_ID = slugify(urlParams.get("bar") || "");
 
-// DEBUG temporaneo: mostra a schermo cosa legge il browser
-showFatal(
-  "DEBUG\nsearch=" + location.search +
-  "\nget(bar)=" + urlParams.get("bar") +
-  "\nBAR_ID=" + BAR_ID +
-  "\nhref=" + location.href
-);
-
 function slugify(s) {
   return String(s)
     .toLowerCase()

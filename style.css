@@ -64,7 +64,7 @@ body {
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 .view { padding: 16px; max-width: 640px; margin: 0 auto; }
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 .name-field { margin-bottom: 16px; }
 .name-field label {
