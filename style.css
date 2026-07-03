@@ -84,6 +84,38 @@ body {
   color: var(--text);
 }
 
+/* Super-categoria */
+.supercat { margin-bottom: 18px; }
+.supercat-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.supercat-name { flex: 1; text-align: left; }
+.supercat-header .badge {
+  background: #fff;
+  color: var(--accent);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 2px 9px;
+  margin-right: 10px;
+}
+.supercat-header .chevron { transition: transform 0.2s; font-weight: 400; }
+.supercat.open .supercat-header .chevron { transform: rotate(90deg); }
+.supercat-body { display: none; padding-top: 12px; }
+.supercat.open .supercat-body { display: block; }
+
 /* Reparto */
 .dept {
   background: var(--card);
@@ -219,6 +251,16 @@ body {
 
 /* Vista lista (modifica) */
 .hint { font-size: 13px; color: var(--text-dim); margin-bottom: 14px; line-height: 1.45; }
+
+.edit-group-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 18px 0 8px;
+}
+.edit-group-title:first-child { margin-top: 0; }
 
 .edit-dept {
   background: var(--card);

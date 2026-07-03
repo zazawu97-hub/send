@@ -201,9 +201,25 @@ const DEFAULT_DEPARTMENTS = [
   },
 ];
 
+// ===== Super-categorie (raggruppano i reparti) =====
+const GROUP_BAR = "BAR";
+const GROUP_SIG = "SIGARETTE ELETTRONICHE";
+const GROUP_ORDER = [GROUP_BAR, GROUP_SIG];
+const DEPT_GROUP = {
+  birre: GROUP_BAR, bibite: GROUP_BAR, succhi: GROUP_BAR,
+  bottiglie: GROUP_BAR, aperitivo: GROUP_BAR, acqua: GROUP_BAR,
+  "elfbar-uag": GROUP_SIG, "elfbar-ricariche": GROUP_SIG,
+  "kiwi-uag": GROUP_SIG, "kiwi-ricariche": GROUP_SIG, "relx-waka": GROUP_SIG,
+};
+DEFAULT_DEPARTMENTS.forEach((d) => { d.group = DEPT_GROUP[d.id] || GROUP_BAR; });
+
+function groupOf(dept) {
+  return dept.group || DEPT_GROUP[dept.id] || GROUP_BAR;
+}
+
 // Alzare quando si aggiungono prodotti/reparti ai default: chi ha già la lista
 // salvata riceve i nuovi elementi al prossimo avvio (senza perdere le sue modifiche).
-const DEFAULTS_VERSION = 3;
+const DEFAULTS_VERSION = 4;
 
 const UNIT_LABELS = { cassa: "Casse", bottiglia: "Bottiglie", stecca: "Stecche" };
 const LS_NAME = "send-name";
@@ -240,6 +256,8 @@ function mergeNewDefaults(inv) {
       }
     });
   });
+  // Backfill super-categoria sui reparti che non ce l'hanno ancora
+  inv.departments.forEach((d) => { d.group = groupOf(d); });
   inv.defaultsVersion = DEFAULTS_VERSION;
 }
 
@@ -322,6 +340,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
 // ===== Vista ordine =====
 const openDepts = new Set();
+const openGroups = new Set(GROUP_ORDER); // super-categorie aperte di default
 
 function getQty(productId, unit) {
   return (quantities[productId] && quantities[productId][unit]) || 0;
@@ -338,79 +357,135 @@ function deptSelectedCount(dept) {
   return dept.products.filter((p) => dept.units.some((u) => getQty(p.id, u) > 0)).length;
 }
 
+function groupSelectedCount(groupName) {
+  return state.departments
+    .filter((d) => groupOf(d) === groupName)
+    .reduce((n, d) => n + deptSelectedCount(d), 0);
+}
+
+// Elenco delle super-categorie presenti, nell'ordine voluto (extra in coda).
+function orderedGroups() {
+  const present = [];
+  state.departments.forEach((d) => {
+    const g = groupOf(d);
+    if (!present.includes(g)) present.push(g);
+  });
+  const ordered = GROUP_ORDER.filter((g) => present.includes(g));
+  present.forEach((g) => { if (!ordered.includes(g)) ordered.push(g); });
+  return ordered;
+}
+
 function renderOrder() {
   const container = document.getElementById("order-departments");
   container.innerHTML = "";
-  state.departments.forEach((dept) => {
-    const card = document.createElement("div");
-    card.className = "dept" + (openDepts.has(dept.id) ? " open" : "");
+  orderedGroups().forEach((groupName) => {
+    const section = document.createElement("div");
+    section.className = "supercat" + (openGroups.has(groupName) ? " open" : "");
+    section.dataset.group = groupName;
 
-    const count = deptSelectedCount(dept);
+    const gcount = groupSelectedCount(groupName);
     const header = document.createElement("button");
-    header.className = "dept-header";
-    header.innerHTML = `<span>${esc(dept.name)}<span class="dept-units">(${dept.units.map((u) => UNIT_LABELS[u].toLowerCase()).join(" + ")})</span></span>${count ? `<span class="badge">${count}</span>` : ""}<span class="chevron">›</span>`;
+    header.className = "supercat-header";
+    header.innerHTML = `<span class="supercat-name">${esc(groupName)}</span>${gcount ? `<span class="badge">${gcount}</span>` : ""}<span class="chevron">›</span>`;
     header.addEventListener("click", () => {
-      openDepts.has(dept.id) ? openDepts.delete(dept.id) : openDepts.add(dept.id);
-      card.classList.toggle("open");
+      openGroups.has(groupName) ? openGroups.delete(groupName) : openGroups.add(groupName);
+      section.classList.toggle("open");
     });
-    card.appendChild(header);
+    section.appendChild(header);
 
     const body = document.createElement("div");
-    body.className = "dept-body";
-    dept.products.forEach((p) => {
-      const row = document.createElement("div");
-      const hasQty = dept.units.some((u) => getQty(p.id, u) > 0);
-      row.className = "product-row" + (hasQty ? " has-qty" : "");
-      const name = document.createElement("div");
-      name.className = "product-name";
-      name.textContent = p.name;
-      row.appendChild(name);
-
-      const controls = document.createElement("div");
-      controls.className = "qty-controls";
-      dept.units.forEach((unit) => {
-        const group = document.createElement("div");
-        group.className = "qty-group";
-        const showLabel = dept.units.length > 1;
-        group.innerHTML = showLabel ? `<span class="qty-unit">${UNIT_LABELS[unit]}</span>` : "";
-
-        const minus = btn("−");
-        const input = document.createElement("input");
-        input.type = "number";
-        input.inputMode = "numeric";
-        input.min = "0";
-        input.className = "qty-input" + (getQty(p.id, unit) > 0 ? " nonzero" : "");
-        input.value = getQty(p.id, unit);
-        const plus = btn("+");
-
-        minus.addEventListener("click", () => { setQty(p.id, unit, getQty(p.id, unit) - 1); refreshRow(); });
-        plus.addEventListener("click", () => { setQty(p.id, unit, getQty(p.id, unit) + 1); refreshRow(); });
-        input.addEventListener("change", () => { setQty(p.id, unit, input.value); refreshRow(); });
-
-        function refreshRow() {
-          input.value = getQty(p.id, unit);
-          input.classList.toggle("nonzero", getQty(p.id, unit) > 0);
-          row.classList.toggle("has-qty", dept.units.some((u) => getQty(p.id, u) > 0));
-          const c = deptSelectedCount(dept);
-          const badge = header.querySelector(".badge");
-          if (c && badge) badge.textContent = c;
-          else if (c && !badge) header.querySelector(".chevron").insertAdjacentHTML("beforebegin", `<span class="badge">${c}</span>`);
-          else if (!c && badge) badge.remove();
-          updateSummary();
-        }
-
-        group.appendChild(minus);
-        group.appendChild(input);
-        group.appendChild(plus);
-        controls.appendChild(group);
-      });
-      row.appendChild(controls);
-      body.appendChild(row);
-    });
-    card.appendChild(body);
-    container.appendChild(card);
+    body.className = "supercat-body";
+    state.departments
+      .filter((d) => groupOf(d) === groupName)
+      .forEach((dept) => body.appendChild(buildDeptCard(dept)));
+    section.appendChild(body);
+    container.appendChild(section);
   });
   updateSummary();
+}
+
+// Aggiorna il badge della super-categoria che contiene questo reparto
+function refreshGroupBadge(deptCard) {
+  const section = deptCard.closest(".supercat");
+  if (!section) return;
+  const groupName = section.dataset.group;
+  const c = groupSelectedCount(groupName);
+  const header = section.querySelector(".supercat-header");
+  let badge = header.querySelector(".badge");
+  if (c && badge) badge.textContent = c;
+  else if (c && !badge) header.querySelector(".chevron").insertAdjacentHTML("beforebegin", `<span class="badge">${c}</span>`);
+  else if (!c && badge) badge.remove();
+}
+
+function buildDeptCard(dept) {
+  const card = document.createElement("div");
+  card.className = "dept" + (openDepts.has(dept.id) ? " open" : "");
+
+  const count = deptSelectedCount(dept);
+  const header = document.createElement("button");
+  header.className = "dept-header";
+  header.innerHTML = `<span>${esc(dept.name)}<span class="dept-units">(${dept.units.map((u) => UNIT_LABELS[u].toLowerCase()).join(" + ")})</span></span>${count ? `<span class="badge">${count}</span>` : ""}<span class="chevron">›</span>`;
+  header.addEventListener("click", () => {
+    openDepts.has(dept.id) ? openDepts.delete(dept.id) : openDepts.add(dept.id);
+    card.classList.toggle("open");
+  });
+  card.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "dept-body";
+  dept.products.forEach((p) => {
+    const row = document.createElement("div");
+    const hasQty = dept.units.some((u) => getQty(p.id, u) > 0);
+    row.className = "product-row" + (hasQty ? " has-qty" : "");
+    const name = document.createElement("div");
+    name.className = "product-name";
+    name.textContent = p.name;
+    row.appendChild(name);
+
+    const controls = document.createElement("div");
+    controls.className = "qty-controls";
+    dept.units.forEach((unit) => {
+      const group = document.createElement("div");
+      group.className = "qty-group";
+      const showLabel = dept.units.length > 1;
+      group.innerHTML = showLabel ? `<span class="qty-unit">${UNIT_LABELS[unit]}</span>` : "";
+
+      const minus = btn("−");
+      const input = document.createElement("input");
+      input.type = "number";
+      input.inputMode = "numeric";
+      input.min = "0";
+      input.className = "qty-input" + (getQty(p.id, unit) > 0 ? " nonzero" : "");
+      input.value = getQty(p.id, unit);
+      const plus = btn("+");
+
+      minus.addEventListener("click", () => { setQty(p.id, unit, getQty(p.id, unit) - 1); refreshRow(); });
+      plus.addEventListener("click", () => { setQty(p.id, unit, getQty(p.id, unit) + 1); refreshRow(); });
+      input.addEventListener("change", () => { setQty(p.id, unit, input.value); refreshRow(); });
+
+      function refreshRow() {
+        input.value = getQty(p.id, unit);
+        input.classList.toggle("nonzero", getQty(p.id, unit) > 0);
+        row.classList.toggle("has-qty", dept.units.some((u) => getQty(p.id, u) > 0));
+        const c = deptSelectedCount(dept);
+        const badge = header.querySelector(".badge");
+        if (c && badge) badge.textContent = c;
+        else if (c && !badge) header.querySelector(".chevron").insertAdjacentHTML("beforebegin", `<span class="badge">${c}</span>`);
+        else if (!c && badge) badge.remove();
+        refreshGroupBadge(card);
+        updateSummary();
+      }
+
+      group.appendChild(minus);
+      group.appendChild(input);
+      group.appendChild(plus);
+      controls.appendChild(group);
+    });
+    row.appendChild(controls);
+    body.appendChild(row);
+  });
+  card.appendChild(body);
+  return card;
 }
 
 function btn(label) {
@@ -527,28 +602,41 @@ async function generatePDF() {
 function renderEdit() {
   const container = document.getElementById("edit-departments");
   container.innerHTML = "";
-  state.departments.forEach((dept, di) => {
-    const card = document.createElement("div");
-    card.className = "edit-dept";
+  orderedGroups().forEach((groupName) => {
+    const groupTitle = document.createElement("h3");
+    groupTitle.className = "edit-group-title";
+    groupTitle.textContent = groupName;
+    container.appendChild(groupTitle);
+    state.departments
+      .filter((d) => groupOf(d) === groupName)
+      .forEach((dept) => container.appendChild(buildEditDeptCard(dept)));
+  });
+}
 
-    const header = document.createElement("div");
-    header.className = "edit-dept-header";
-    const title = document.createElement("span");
-    title.className = "dept-title";
-    title.textContent = `${dept.name} (${dept.units.map((u) => UNIT_LABELS[u].toLowerCase()).join(" + ")})`;
-    header.appendChild(title);
-    header.appendChild(iconBtn("✏️", "Rinomina reparto", () => {
-      const name = prompt("Nuovo nome del reparto:", dept.name);
-      if (name && name.trim()) { dept.name = name.trim().toUpperCase(); saveInventory(); renderAll(); }
-    }));
-    header.appendChild(iconBtn("🗑", "Elimina reparto", () => {
-      if (!confirm(`Eliminare il reparto ${dept.name} e tutti i suoi prodotti?`)) return;
-      state.departments.splice(di, 1);
-      saveInventory();
-      renderAll();
-    }));
-    card.appendChild(header);
+function buildEditDeptCard(dept) {
+  const card = document.createElement("div");
+  card.className = "edit-dept";
 
+  const header = document.createElement("div");
+  header.className = "edit-dept-header";
+  const title = document.createElement("span");
+  title.className = "dept-title";
+  title.textContent = `${dept.name} (${dept.units.map((u) => UNIT_LABELS[u].toLowerCase()).join(" + ")})`;
+  header.appendChild(title);
+  header.appendChild(iconBtn("✏️", "Rinomina reparto", () => {
+    const name = prompt("Nuovo nome del reparto:", dept.name);
+    if (name && name.trim()) { dept.name = name.trim().toUpperCase(); saveInventory(); renderAll(); }
+  }));
+  header.appendChild(iconBtn("🗑", "Elimina reparto", () => {
+    if (!confirm(`Eliminare il reparto ${dept.name} e tutti i suoi prodotti?`)) return;
+    const idx = state.departments.indexOf(dept);
+    if (idx > -1) state.departments.splice(idx, 1);
+    saveInventory();
+    renderAll();
+  }));
+  card.appendChild(header);
+
+  {
     dept.products.forEach((p, pi) => {
       const row = document.createElement("div");
       row.className = "edit-product-row";
@@ -582,8 +670,9 @@ function renderEdit() {
       }
     });
     card.appendChild(addBtn);
-    container.appendChild(card);
-  });
+  }
+
+  return card;
 }
 
 function iconBtn(icon, label, onClick) {
@@ -599,11 +688,22 @@ function iconBtn(icon, label, onClick) {
 document.getElementById("btn-add-department").addEventListener("click", () => {
   const name = prompt("Nome del nuovo reparto:");
   if (!name || !name.trim()) return;
-  const dual = confirm("Deve avere due unità di misura (casse E bottiglie)?\nOK = casse + bottiglie · Annulla = solo casse");
+  const isSig = confirm(
+    "In quale super-categoria?\nOK = SIGARETTE ELETTRONICHE · Annulla = BAR"
+  );
+  const group = isSig ? GROUP_SIG : GROUP_BAR;
+  let units;
+  if (isSig) {
+    units = ["stecca"];
+  } else {
+    const dual = confirm("Deve avere due unità di misura (casse E bottiglie)?\nOK = casse + bottiglie · Annulla = solo casse");
+    units = dual ? ["cassa", "bottiglia"] : ["cassa"];
+  }
   state.departments.push({
     id: uid(),
     name: name.trim().toUpperCase(),
-    units: dual ? ["cassa", "bottiglia"] : ["cassa"],
+    group,
+    units,
     products: [],
   });
   saveInventory();
