@@ -10,9 +10,20 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
+  <!-- SCHERMATA SETUP (primo accesso senza codice) -->
+  <div id="setup-screen" class="setup-screen hidden">
+    <div class="setup-card">
+      <h1 class="setup-logo">SEND</h1>
+      <h2>Benvenuto</h2>
+      <p>Dai un nome alla tua attività. Serve a ritrovare la tua lista, sempre — anche cambiando telefono.</p>
+      <input type="text" id="setup-name" placeholder="Es. Bar Rossi" autocomplete="off">
+      <button id="setup-go" class="btn-primary full-width">Crea il mio spazio</button>
+    </div>
+  </div>
+
   <header class="topbar">
     <h1>SEND</h1>
-    <span class="topbar-sub">Ordine magazzino</span>
+    <span class="topbar-sub" id="topbar-bar">Ordine magazzino</span>
   </header>
 
   <nav class="tabs">
@@ -46,15 +57,13 @@
 
   <!-- VISTA IMPOSTAZIONI -->
   <main id="view-impostazioni" class="view hidden">
-    <div class="setting-row">
+    <div class="setting-row column">
       <div>
-        <strong>Sincronizzazione lista tra dispositivi</strong>
-        <p class="hint" id="sync-hint">Quando attiva, la lista prodotti è condivisa con tutti i telefoni.</p>
+        <strong>Il tuo spazio</strong>
+        <p class="hint">Codice attività: <b id="bar-code-label">—</b><br>
+        La tua lista è salvata online e non si perde mai. Apri sempre lo stesso link per ritrovarla.</p>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="sync-toggle">
-        <span class="slider"></span>
-      </label>
+      <button id="btn-copy-link" class="btn-secondary full-width">📋 Copia il mio link</button>
     </div>
     <div class="setting-row">
       <div>

@@ -1,10 +1,25 @@
 /* SEND — Ordine magazzino */
 
-// ===== Configurazione sync (Supabase) =====
-// Lasciare vuoti = sincronizzazione non disponibile (toggle disabilitato).
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
-const SYNC_AVAILABLE = SUPABASE_URL !== "" && SUPABASE_ANON_KEY !== "";
+// ===== Configurazione Supabase =====
+// La publishable key è pensata per stare nel client (rispetta le policy RLS della tabella).
+const SUPABASE_URL = "https://pwuebotkdxobjvfoepjz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_LEGQHUZEAH-ET0582OWRKA_r51GJpEf";
+const SB_HEADERS = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+
+// ===== Identità del bar (dal parametro ?bar=) =====
+const urlParams = new URLSearchParams(location.search);
+let BAR_ID = slugify(urlParams.get("bar") || "");
+
+function slugify(s) {
+  return String(s)
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
 
 // ===== Lista di default =====
 const DEFAULT_DEPARTMENTS = [
@@ -86,13 +101,14 @@ const DEFAULT_DEPARTMENTS = [
 const DEFAULTS_VERSION = 2;
 
 const UNIT_LABELS = { cassa: "Casse", bottiglia: "Bottiglie" };
-const LS_INVENTORY = "send-inventory";
-const LS_ORDER = "send-order";
 const LS_NAME = "send-name";
+const lsInvKey = () => "send-inv-" + BAR_ID;     // cache lista per bar
+const lsOrderKey = () => "send-order-" + BAR_ID; // ordine in corso per bar
 
-// ===== Stato =====
-let state = loadInventory();
-let quantities = loadJSON(LS_ORDER, {}); // { productId: { cassa: n, bottiglia: n } }
+// ===== Stato (popolato in init(), dopo aver scaricato dal server) =====
+let state = { defaultsVersion: DEFAULTS_VERSION, departments: structuredClone(DEFAULT_DEPARTMENTS) };
+let quantities = {}; // { productId: { cassa: n, bottiglia: n } }
+let userEdited = false; // true appena il bar tocca la lista: evita che il sync iniziale sovrascriva
 
 function loadJSON(key, fallback) {
   try {
@@ -103,29 +119,14 @@ function loadJSON(key, fallback) {
   }
 }
 
-function loadInventory() {
-  const saved = loadJSON(LS_INVENTORY, null);
-  if (saved && Array.isArray(saved.departments)) {
-    if ((saved.defaultsVersion || 1) < DEFAULTS_VERSION) {
-      mergeNewDefaults(saved);
-      saved.defaultsVersion = DEFAULTS_VERSION;
-      localStorage.setItem(LS_INVENTORY, JSON.stringify(saved));
-    }
-    return saved;
-  }
-  const fresh = { syncEnabled: false, defaultsVersion: DEFAULTS_VERSION, departments: structuredClone(DEFAULT_DEPARTMENTS) };
-  localStorage.setItem(LS_INVENTORY, JSON.stringify(fresh));
-  return fresh;
-}
-
-// Aggiunge alla lista salvata i reparti/prodotti di default mancanti (per id).
-// Non tocca rinominati né personalizzati; gira una sola volta per versione,
-// quindi un default eliminato a mano non viene ri-aggiunto ai prossimi avvii.
-function mergeNewDefaults(saved) {
+// Aggiunge alla lista i reparti/prodotti di default mancanti (per id).
+// Non tocca rinominati né personalizzati; guidato da defaultsVersion, così
+// un default eliminato a mano non torna ai prossimi avvii.
+function mergeNewDefaults(inv) {
   DEFAULT_DEPARTMENTS.forEach((defDept) => {
-    const dept = saved.departments.find((d) => d.id === defDept.id);
+    const dept = inv.departments.find((d) => d.id === defDept.id);
     if (!dept) {
-      saved.departments.push(structuredClone(defDept));
+      inv.departments.push(structuredClone(defDept));
       return;
     }
     defDept.products.forEach((defProd) => {
@@ -134,51 +135,68 @@ function mergeNewDefaults(saved) {
       }
     });
   });
+  inv.defaultsVersion = DEFAULTS_VERSION;
 }
 
+// Salva la lista: cache locale + server (upsert per bar). Sempre sincronizzato.
 function saveInventory() {
-  localStorage.setItem(LS_INVENTORY, JSON.stringify(state));
-  if (state.syncEnabled && SYNC_AVAILABLE) pushToServer();
+  userEdited = true;
+  localStorage.setItem(lsInvKey(), JSON.stringify(state));
+  pushToServer();
 }
 
 function saveOrder() {
-  localStorage.setItem(LS_ORDER, JSON.stringify(quantities));
+  localStorage.setItem(lsOrderKey(), JSON.stringify(quantities));
 }
 
 function uid() {
   return "p-" + Math.random().toString(36).slice(2, 10);
 }
 
-// ===== Sync (Supabase REST) =====
+// ===== Sync Supabase (tabella bar_inventories, una riga per bar) =====
 async function pushToServer() {
+  if (!BAR_ID) return;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/inventory?id=eq.1`, {
-      method: "PATCH",
-      headers: {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ data: { departments: state.departments } }),
+    await fetch(`${SUPABASE_URL}/rest/v1/bar_inventories?on_conflict=bar_id`, {
+      method: "POST",
+      headers: { ...SB_HEADERS, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates" },
+      body: JSON.stringify({
+        bar_id: BAR_ID,
+        data: { departments: state.departments, defaultsVersion: state.defaultsVersion },
+        updated_at: new Date().toISOString(),
+      }),
     });
   } catch {
-    toast("Sincronizzazione non riuscita (offline?)");
+    /* offline: la copia locale resta valida, si ripush al prossimo salvataggio */
   }
 }
 
-async function pullFromServer() {
+// Scarica la lista del bar dal server. Se la riga non esiste, la crea coi default.
+// Non sovrascrive se nel frattempo l'utente ha già modificato (userEdited).
+async function syncFromServer() {
+  if (!BAR_ID) return;
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/inventory?id=eq.1&select=data`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
-    });
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/bar_inventories?bar_id=eq.${encodeURIComponent(BAR_ID)}&select=data`,
+      { headers: SB_HEADERS }
+    );
     const rows = await res.json();
-    if (rows[0] && rows[0].data && Array.isArray(rows[0].data.departments)) {
-      state.departments = rows[0].data.departments;
-      localStorage.setItem(LS_INVENTORY, JSON.stringify(state));
+    if (Array.isArray(rows) && rows[0] && rows[0].data && Array.isArray(rows[0].data.departments)) {
+      if (userEdited) return; // l'utente ha già toccato la lista: non calpestare le sue modifiche
+      const server = { departments: rows[0].data.departments, defaultsVersion: rows[0].data.defaultsVersion || 1 };
+      if (server.defaultsVersion < DEFAULTS_VERSION) {
+        mergeNewDefaults(server);
+      }
+      state = server;
+      localStorage.setItem(lsInvKey(), JSON.stringify(state));
       renderAll();
+      if (server.defaultsVersion !== (rows[0].data.defaultsVersion || 1)) pushToServer();
+    } else {
+      // Riga assente: primo accesso di questo bar → semina lo stato corrente sul server.
+      pushToServer();
     }
   } catch {
-    /* offline: si usa la copia locale */
+    /* offline: si continua con la cache locale già mostrata */
   }
 }
 
@@ -483,28 +501,19 @@ document.getElementById("btn-add-department").addEventListener("click", () => {
 });
 
 // ===== Impostazioni =====
-const syncToggle = document.getElementById("sync-toggle");
-const syncHint = document.getElementById("sync-hint");
-if (!SYNC_AVAILABLE) {
-  syncToggle.disabled = true;
-  syncHint.textContent = "Funzione in arrivo: sarà attivabile appena configurata la sincronizzazione.";
-} else {
-  syncToggle.checked = state.syncEnabled;
-  syncToggle.addEventListener("change", () => {
-    state.syncEnabled = syncToggle.checked;
-    localStorage.setItem(LS_INVENTORY, JSON.stringify(state));
-    if (state.syncEnabled) {
-      pullFromServer();
-      toast("Sincronizzazione attivata");
-    } else {
-      toast("Sincronizzazione disattivata");
-    }
-  });
-}
+document.getElementById("btn-copy-link").addEventListener("click", async () => {
+  const link = `${location.origin}${location.pathname}?bar=${encodeURIComponent(BAR_ID)}`;
+  try {
+    await navigator.clipboard.writeText(link);
+    toast("Link copiato");
+  } catch {
+    prompt("Copia il tuo link:", link);
+  }
+});
 
 document.getElementById("btn-reset").addEventListener("click", () => {
   if (!confirm("Ripristinare la lista di default? Le modifiche e le quantità in corso andranno perse.")) return;
-  state.departments = structuredClone(DEFAULT_DEPARTMENTS);
+  state = { defaultsVersion: DEFAULTS_VERSION, departments: structuredClone(DEFAULT_DEPARTMENTS) };
   quantities = {};
   saveOrder();
   saveInventory();
@@ -524,10 +533,50 @@ function toast(msg) {
   toastTimer = setTimeout(() => el.remove(), 2800);
 }
 
-// ===== Avvio =====
+// ===== Schermata setup (nessun ?bar= nell'URL) =====
+function showSetup() {
+  const screen = document.getElementById("setup-screen");
+  const input = document.getElementById("setup-name");
+  screen.classList.remove("hidden");
+  const go = () => {
+    const slug = slugify(input.value);
+    if (!slug) {
+      toast("Scrivi un nome valido (lettere o numeri)");
+      input.focus();
+      return;
+    }
+    location.search = "?bar=" + encodeURIComponent(slug);
+  };
+  document.getElementById("setup-go").addEventListener("click", go);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+  input.focus();
+}
+
 function renderAll() {
   renderOrder();
   renderEdit();
 }
-renderAll();
-if (state.syncEnabled && SYNC_AVAILABLE) pullFromServer();
+
+// ===== Avvio =====
+async function init() {
+  if (!BAR_ID) {
+    showSetup();
+    return;
+  }
+  // Mostra il codice del bar nell'intestazione e nelle impostazioni
+  document.getElementById("topbar-bar").textContent = BAR_ID;
+  document.getElementById("bar-code-label").textContent = BAR_ID;
+
+  // Carica subito la cache locale (se c'è) per non partire vuoti, poi allinea col server
+  const cached = loadJSON(lsInvKey(), null);
+  if (cached && Array.isArray(cached.departments)) {
+    state = { departments: cached.departments, defaultsVersion: cached.defaultsVersion || 1 };
+    if (state.defaultsVersion < DEFAULTS_VERSION) mergeNewDefaults(state);
+  }
+  quantities = loadJSON(lsOrderKey(), {});
+  renderAll();
+
+  await syncFromServer();
+}
+
+init();
