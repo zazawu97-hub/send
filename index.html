@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>SEND — Ordine magazzino</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>SEND</h1>
+    <span class="topbar-sub">Ordine magazzino</span>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="ordine">Ordine</button>
+    <button class="tab" data-view="lista">Lista</button>
+    <button class="tab" data-view="impostazioni">Impostazioni</button>
+  </nav>
+
+  <!-- VISTA ORDINE -->
+  <main id="view-ordine" class="view">
+    <div class="name-field">
+      <label for="compiler-name">Il tuo nome</label>
+      <input type="text" id="compiler-name" placeholder="Es. Marco" autocomplete="name">
+    </div>
+    <div id="order-departments"></div>
+    <div class="order-footer">
+      <div class="order-summary" id="order-summary">Nessun prodotto selezionato</div>
+      <div class="order-actions">
+        <button id="btn-clear-order" class="btn-secondary">Azzera</button>
+        <button id="btn-generate-pdf" class="btn-primary">Genera PDF ordine</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- VISTA LISTA -->
+  <main id="view-lista" class="view hidden">
+    <p class="hint">Qui puoi modificare i prodotti e i reparti. Le modifiche si salvano da sole.</p>
+    <div id="edit-departments"></div>
+    <button id="btn-add-department" class="btn-secondary full-width">+ Aggiungi reparto</button>
+  </main>
+
+  <!-- VISTA IMPOSTAZIONI -->
+  <main id="view-impostazioni" class="view hidden">
+    <div class="setting-row">
+      <div>
+        <strong>Sincronizzazione lista tra dispositivi</strong>
+        <p class="hint" id="sync-hint">Quando attiva, la lista prodotti è condivisa con tutti i telefoni.</p>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="sync-toggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="setting-row">
+      <div>
+        <strong>Ripristina lista di default</strong>
+        <p class="hint">Riporta prodotti e reparti alla lista originale. Le quantità in corso si azzerano.</p>
+      </div>
+      <button id="btn-reset" class="btn-danger">Ripristina</button>
+    </div>
+    <p class="version">SEND v1.0</p>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
