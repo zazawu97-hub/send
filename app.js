@@ -106,7 +106,7 @@ const lsInvKey = () => "send-inv-" + BAR_ID;     // cache lista per bar
 const lsOrderKey = () => "send-order-" + BAR_ID; // ordine in corso per bar
 
 // ===== Stato (popolato in init(), dopo aver scaricato dal server) =====
-let state = { defaultsVersion: DEFAULTS_VERSION, departments: structuredClone(DEFAULT_DEPARTMENTS) };
+let state = { defaultsVersion: DEFAULTS_VERSION, departments: clone(DEFAULT_DEPARTMENTS) };
 let quantities = {}; // { productId: { cassa: n, bottiglia: n } }
 let userEdited = false; // true appena il bar tocca la lista: evita che il sync iniziale sovrascriva
 
@@ -126,12 +126,12 @@ function mergeNewDefaults(inv) {
   DEFAULT_DEPARTMENTS.forEach((defDept) => {
     const dept = inv.departments.find((d) => d.id === defDept.id);
     if (!dept) {
-      inv.departments.push(structuredClone(defDept));
+      inv.departments.push(clone(defDept));
       return;
     }
     defDept.products.forEach((defProd) => {
       if (!dept.products.some((p) => p.id === defProd.id)) {
-        dept.products.push(structuredClone(defProd));
+        dept.products.push(clone(defProd));
       }
     });
   });
@@ -151,6 +151,11 @@ function saveOrder() {
 
 function uid() {
   return "p-" + Math.random().toString(36).slice(2, 10);
+}
+
+// Deep clone universale (structuredClone non esiste su WebKit/Safari < 15.4)
+function clone(obj) {
+  return JSON.parse(JSON.stringify(obj));
 }
 
 // ===== Sync Supabase (tabella bar_inventories, una riga per bar) =====
@@ -513,7 +518,7 @@ document.getElementById("btn-copy-link").addEventListener("click", async () => {
 
 document.getElementById("btn-reset").addEventListener("click", () => {
   if (!confirm("Ripristinare la lista di default? Le modifiche e le quantità in corso andranno perse.")) return;
-  state = { defaultsVersion: DEFAULTS_VERSION, departments: structuredClone(DEFAULT_DEPARTMENTS) };
+  state = { defaultsVersion: DEFAULTS_VERSION, departments: clone(DEFAULT_DEPARTMENTS) };
   quantities = {};
   saveOrder();
   saveInventory();
@@ -534,22 +539,31 @@ function toast(msg) {
 }
 
 // ===== Schermata setup (nessun ?bar= nell'URL) =====
+// Funzione globale: richiamata sia dall'onclick inline nell'HTML sia dal listener,
+// così il pulsante funziona a prescindere dall'ordine di caricamento / dal browser.
+function createBarSpace() {
+  const input = document.getElementById("setup-name");
+  const slug = slugify(input ? input.value : "");
+  if (!slug) {
+    toast("Scrivi un nome valido (lettere o numeri)");
+    if (input) input.focus();
+    return;
+  }
+  const url = location.origin + location.pathname + "?bar=" + encodeURIComponent(slug);
+  location.assign(url);
+}
+window.createBarSpace = createBarSpace;
+
 function showSetup() {
   const screen = document.getElementById("setup-screen");
   const input = document.getElementById("setup-name");
   screen.classList.remove("hidden");
-  const go = () => {
-    const slug = slugify(input.value);
-    if (!slug) {
-      toast("Scrivi un nome valido (lettere o numeri)");
-      input.focus();
-      return;
-    }
-    location.search = "?bar=" + encodeURIComponent(slug);
-  };
-  document.getElementById("setup-go").addEventListener("click", go);
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
-  input.focus();
+  const btn = document.getElementById("setup-go");
+  if (btn) btn.addEventListener("click", createBarSpace);
+  if (input) {
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") createBarSpace(); });
+    input.focus();
+  }
 }
 
 function renderAll() {
