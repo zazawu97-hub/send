@@ -86,6 +86,40 @@
         " " + d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
     }
 
+    async function deleteBar(barId, card, btn) {
+      if (!confirm(`Eliminare DEFINITIVAMENTE il bar "${barId}"?\n\nSi cancellano la sua lista e tutti i suoi accessi. Non è reversibile.`)) return;
+      btn.disabled = true;
+      btn.textContent = "…";
+      try {
+        const filter = `bar_id=eq.${encodeURIComponent(barId)}`;
+        // return=representation: la risposta contiene le righe davvero cancellate.
+        // Se la policy di delete manca, RLS le filtra e l'array torna vuoto.
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/bar_inventories?${filter}`, {
+          method: "DELETE",
+          headers: { ...SB_HEADERS, Prefer: "return=representation" },
+        });
+        const deleted = res.ok ? await res.json() : [];
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        if (!Array.isArray(deleted) || deleted.length === 0) {
+          throw new Error("policy-mancante");
+        }
+        // Cancella anche gli accessi (best-effort)
+        await fetch(`${SUPABASE_URL}/rest/v1/bar_visits?${filter}`, {
+          method: "DELETE",
+          headers: { ...SB_HEADERS, Prefer: "return=minimal" },
+        }).catch(() => {});
+        card.remove();
+        loadDashboard(); // aggiorna i totali
+      } catch (err) {
+        const msg = err.message === "policy-mancante"
+          ? "Non cancellato: manca la policy di delete su Supabase.\nEsegui l'SQL che ti ho dato, poi riprova."
+          : "Eliminazione non riuscita: " + err.message;
+        alert(msg);
+        btn.disabled = false;
+        btn.textContent = "🗑 Elimina";
+      }
+    }
+
     async function loadDashboard() {
       const list = document.getElementById("bar-list");
       try {
@@ -131,6 +165,7 @@
             <div class="admin-actions">
               <button class="btn-secondary" data-link="${link}">📋 Copia link</button>
               <a class="btn-secondary" style="text-decoration:none" href="${link}" target="_blank">Apri</a>
+              <button class="btn-danger" data-del="${b.bar_id}">🗑 Elimina</button>
             </div>`;
           card.querySelector("[data-link]").addEventListener("click", async (e) => {
             try {
@@ -141,6 +176,7 @@
               prompt("Copia il link:", e.target.dataset.link);
             }
           });
+          card.querySelector("[data-del]").addEventListener("click", (e) => deleteBar(e.target.dataset.del, card, e.target));
           list.appendChild(card);
         });
       } catch (err) {
