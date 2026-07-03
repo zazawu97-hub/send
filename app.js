@@ -32,6 +32,7 @@ const DEFAULT_DEPARTMENTS = [
       { id: "aranciata-amara", name: "Aranciata amara" },
       { id: "fanta", name: "Fanta" },
       { id: "lemonsoda", name: "Lemonsoda" },
+      { id: "cedrata", name: "Cedrata" },
     ],
   },
   {
@@ -57,6 +58,8 @@ const DEFAULT_DEPARTMENTS = [
       { id: "vodka-eco", name: "Vodka (la più economica)" },
       { id: "grappa-eco", name: "Grappa (la più economica)" },
       { id: "sambuca-molinari", name: "Sambuca Molinari" },
+      { id: "select", name: "Select" },
+      { id: "montenegro", name: "Montenegro" },
     ],
   },
   {
@@ -67,7 +70,20 @@ const DEFAULT_DEPARTMENTS = [
       { id: "campari-soda", name: "Campari Soda" },
     ],
   },
+  {
+    id: "acqua", name: "ACQUA", units: ["cassa"],
+    products: [
+      { id: "acqua-piccola-nat", name: "Acqua piccola naturale" },
+      { id: "acqua-piccola-friz", name: "Acqua piccola frizzante" },
+      { id: "acqua-grande-nat", name: "Acqua grande naturale" },
+      { id: "acqua-grande-friz", name: "Acqua grande frizzante" },
+    ],
+  },
 ];
+
+// Alzare quando si aggiungono prodotti/reparti ai default: chi ha già la lista
+// salvata riceve i nuovi elementi al prossimo avvio (senza perdere le sue modifiche).
+const DEFAULTS_VERSION = 2;
 
 const UNIT_LABELS = { cassa: "Casse", bottiglia: "Bottiglie" };
 const LS_INVENTORY = "send-inventory";
@@ -89,10 +105,35 @@ function loadJSON(key, fallback) {
 
 function loadInventory() {
   const saved = loadJSON(LS_INVENTORY, null);
-  if (saved && Array.isArray(saved.departments)) return saved;
-  const fresh = { syncEnabled: false, departments: structuredClone(DEFAULT_DEPARTMENTS) };
+  if (saved && Array.isArray(saved.departments)) {
+    if ((saved.defaultsVersion || 1) < DEFAULTS_VERSION) {
+      mergeNewDefaults(saved);
+      saved.defaultsVersion = DEFAULTS_VERSION;
+      localStorage.setItem(LS_INVENTORY, JSON.stringify(saved));
+    }
+    return saved;
+  }
+  const fresh = { syncEnabled: false, defaultsVersion: DEFAULTS_VERSION, departments: structuredClone(DEFAULT_DEPARTMENTS) };
   localStorage.setItem(LS_INVENTORY, JSON.stringify(fresh));
   return fresh;
+}
+
+// Aggiunge alla lista salvata i reparti/prodotti di default mancanti (per id).
+// Non tocca rinominati né personalizzati; gira una sola volta per versione,
+// quindi un default eliminato a mano non viene ri-aggiunto ai prossimi avvii.
+function mergeNewDefaults(saved) {
+  DEFAULT_DEPARTMENTS.forEach((defDept) => {
+    const dept = saved.departments.find((d) => d.id === defDept.id);
+    if (!dept) {
+      saved.departments.push(structuredClone(defDept));
+      return;
+    }
+    defDept.products.forEach((defProd) => {
+      if (!dept.products.some((p) => p.id === defProd.id)) {
+        dept.products.push(structuredClone(defProd));
+      }
+    });
+  });
 }
 
 function saveInventory() {
