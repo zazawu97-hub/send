@@ -125,6 +125,24 @@ const DEFAULT_DEPARTMENTS = [
     ],
   },
   {
+    id: "oggettistica", name: "OGGETTISTICA", units: ["confezione"],
+    products: [
+      { id: "ogg-zucchero-canna", name: "Zucchero di canna", units: ["cassa"] },
+      { id: "ogg-zucchero-bianco", name: "Zucchero bianco", units: ["cassa"] },
+      { id: "ogg-dolcificante", name: "Dolcificante", units: ["cassa"] },
+      { id: "ogg-coperchi-cappuccio", name: "Coperchi cappuccio d'asporto" },
+      { id: "ogg-coperchi-caffe", name: "Coperchi caffè d'asporto" },
+      { id: "ogg-bicchieri-cappuccio", name: "Bicchieri asporto cappuccio" },
+      { id: "ogg-bicchieri-caffe", name: "Bicchieri asporto caffè" },
+      { id: "ogg-bicchieri-plastica", name: "Bicchieri di plastica" },
+      { id: "ogg-tovaglioli-bianchi", name: "Tovaglioli bianchi" },
+      { id: "ogg-tovaglioli-cartapesta", name: "Tovaglioli carta pesta da bar" },
+      { id: "ogg-bobine-carta", name: "Bobine di carta grande" },
+      { id: "ogg-detersivo-pavimento", name: "Detersivo per pavimento" },
+      { id: "ogg-spray-vetri", name: "Spray per vetri" },
+    ],
+  },
+  {
     id: "elfbar-uag", name: "ELFBAR USA E GETTA", units: ["stecca"],
     products: [
       { id: "elfuag-menthol", name: "Menthol" },
@@ -217,6 +235,7 @@ const GROUP_ORDER = [GROUP_BAR, GROUP_SIG];
 const DEPT_GROUP = {
   birre: GROUP_BAR, bibite: GROUP_BAR, succhi: GROUP_BAR,
   bottiglie: GROUP_BAR, aperitivo: GROUP_BAR, acqua: GROUP_BAR,
+  oggettistica: GROUP_BAR,
   "elfbar-uag": GROUP_SIG, "elfbar-ricariche": GROUP_SIG,
   "kiwi-uag": GROUP_SIG, "kiwi-ricariche": GROUP_SIG, "relx-waka": GROUP_SIG,
 };
@@ -228,9 +247,14 @@ function groupOf(dept) {
 
 // Alzare quando si aggiungono prodotti/reparti ai default: chi ha già la lista
 // salvata riceve i nuovi elementi al prossimo avvio (senza perdere le sue modifiche).
-const DEFAULTS_VERSION = 4;
+const DEFAULTS_VERSION = 5;
 
-const UNIT_LABELS = { cassa: "Casse", bottiglia: "Bottiglie", stecca: "Stecche" };
+const UNIT_LABELS = { cassa: "Casse", bottiglia: "Bottiglie", stecca: "Stecche", confezione: "Confezioni" };
+
+// Unità di un prodotto: override per-prodotto se presente, altrimenti quelle del reparto.
+function unitsOf(dept, product) {
+  return (product && Array.isArray(product.units) && product.units.length) ? product.units : dept.units;
+}
 const LS_NAME = "send-name";
 const lsInvKey = () => "send-inv-" + BAR_ID;     // cache lista per bar
 const lsOrderKey = () => "send-order-" + BAR_ID; // ordine in corso per bar
@@ -373,7 +397,7 @@ function setQty(productId, unit, value) {
 }
 
 function deptSelectedCount(dept) {
-  return dept.products.filter((p) => dept.units.some((u) => getQty(p.id, u) > 0)).length;
+  return dept.products.filter((p) => unitsOf(dept, p).some((u) => getQty(p.id, u) > 0)).length;
 }
 
 function groupSelectedCount(groupName) {
@@ -453,8 +477,9 @@ function buildDeptCard(dept) {
   const body = document.createElement("div");
   body.className = "dept-body";
   dept.products.forEach((p) => {
+    const pUnits = unitsOf(dept, p);
     const row = document.createElement("div");
-    const hasQty = dept.units.some((u) => getQty(p.id, u) > 0);
+    const hasQty = pUnits.some((u) => getQty(p.id, u) > 0);
     row.className = "product-row" + (hasQty ? " has-qty" : "");
     const name = document.createElement("div");
     name.className = "product-name";
@@ -463,10 +488,12 @@ function buildDeptCard(dept) {
 
     const controls = document.createElement("div");
     controls.className = "qty-controls";
-    dept.units.forEach((unit) => {
+    pUnits.forEach((unit) => {
       const group = document.createElement("div");
       group.className = "qty-group";
-      const showLabel = dept.units.length > 1;
+      // Mostra l'etichetta unità se il prodotto ha più unità, o se la sua unità
+      // è diversa da quella di default del reparto (es. cassa dentro OGGETTISTICA).
+      const showLabel = pUnits.length > 1 || (dept.units.length === 1 && pUnits[0] !== dept.units[0]);
       group.innerHTML = showLabel ? `<span class="qty-unit">${UNIT_LABELS[unit]}</span>` : "";
 
       const minus = btn("−");
@@ -485,7 +512,7 @@ function buildDeptCard(dept) {
       function refreshRow() {
         input.value = getQty(p.id, unit);
         input.classList.toggle("nonzero", getQty(p.id, unit) > 0);
-        row.classList.toggle("has-qty", dept.units.some((u) => getQty(p.id, u) > 0));
+        row.classList.toggle("has-qty", pUnits.some((u) => getQty(p.id, u) > 0));
         const c = deptSelectedCount(dept);
         const badge = header.querySelector(".badge");
         if (c && badge) badge.textContent = c;
@@ -576,7 +603,7 @@ async function generatePDF() {
   state.departments.forEach((dept) => {
     const rows = [];
     dept.products.forEach((p) => {
-      dept.units.forEach((unit) => {
+      unitsOf(dept, p).forEach((unit) => {
         const q = getQty(p.id, unit);
         if (q > 0) rows.push([p.name, String(q), UNIT_LABELS[unit].toLowerCase()]);
       });
