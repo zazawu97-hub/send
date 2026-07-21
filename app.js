@@ -400,10 +400,27 @@ function deptSelectedCount(dept) {
   return dept.products.filter((p) => unitsOf(dept, p).some((u) => getQty(p.id, u) > 0)).length;
 }
 
+// Somma delle quantità (pezzi) di un reparto, rispettando le unità per-prodotto
+function deptTotalQty(dept) {
+  let t = 0;
+  dept.products.forEach((p) => unitsOf(dept, p).forEach((u) => (t += getQty(p.id, u))));
+  return t;
+}
+
 function groupSelectedCount(groupName) {
   return state.departments
     .filter((d) => groupOf(d) === groupName)
     .reduce((n, d) => n + deptSelectedCount(d), 0);
+}
+
+function groupTotalQty(groupName) {
+  return state.departments
+    .filter((d) => groupOf(d) === groupName)
+    .reduce((n, d) => n + deptTotalQty(d), 0);
+}
+
+function grandTotalQty() {
+  return state.departments.reduce((n, d) => n + deptTotalQty(d), 0);
 }
 
 // Elenco delle super-categorie presenti, nell'ordine voluto (extra in coda).
@@ -426,7 +443,7 @@ function renderOrder() {
     section.className = "supercat" + (openGroups.has(groupName) ? " open" : "");
     section.dataset.group = groupName;
 
-    const gcount = groupSelectedCount(groupName);
+    const gcount = groupTotalQty(groupName);
     const header = document.createElement("button");
     header.className = "supercat-header";
     header.innerHTML = `<span class="supercat-name">${esc(groupName)}</span>${gcount ? `<span class="badge">${gcount}</span>` : ""}<span class="chevron">›</span>`;
@@ -452,7 +469,7 @@ function refreshGroupBadge(deptCard) {
   const section = deptCard.closest(".supercat");
   if (!section) return;
   const groupName = section.dataset.group;
-  const c = groupSelectedCount(groupName);
+  const c = groupTotalQty(groupName);
   const header = section.querySelector(".supercat-header");
   let badge = header.querySelector(".badge");
   if (c && badge) badge.textContent = c;
@@ -464,7 +481,7 @@ function buildDeptCard(dept) {
   const card = document.createElement("div");
   card.className = "dept" + (openDepts.has(dept.id) ? " open" : "");
 
-  const count = deptSelectedCount(dept);
+  const count = deptTotalQty(dept);
   const header = document.createElement("button");
   header.className = "dept-header";
   header.innerHTML = `<span>${esc(dept.name)}<span class="dept-units">(${dept.units.map((u) => UNIT_LABELS[u].toLowerCase()).join(" + ")})</span></span>${count ? `<span class="badge">${count}</span>` : ""}<span class="chevron">›</span>`;
@@ -513,7 +530,7 @@ function buildDeptCard(dept) {
         input.value = getQty(p.id, unit);
         input.classList.toggle("nonzero", getQty(p.id, unit) > 0);
         row.classList.toggle("has-qty", pUnits.some((u) => getQty(p.id, u) > 0));
-        const c = deptSelectedCount(dept);
+        const c = deptTotalQty(dept);
         const badge = header.querySelector(".badge");
         if (c && badge) badge.textContent = c;
         else if (c && !badge) header.querySelector(".chevron").insertAdjacentHTML("beforebegin", `<span class="badge">${c}</span>`);
@@ -553,8 +570,14 @@ function totalSelected() {
 
 function updateSummary() {
   const n = totalSelected();
-  document.getElementById("order-summary").textContent =
-    n === 0 ? "Nessun prodotto selezionato" : n === 1 ? "1 prodotto selezionato" : `${n} prodotti selezionati`;
+  const tot = grandTotalQty();
+  const el = document.getElementById("order-summary");
+  if (n === 0) {
+    el.textContent = "Nessun prodotto selezionato";
+  } else {
+    const prod = n === 1 ? "1 prodotto" : `${n} prodotti`;
+    el.textContent = `${prod} · Totale ${tot} pezzi`;
+  }
 }
 
 // Nome compilatore
@@ -600,6 +623,7 @@ async function generatePDF() {
   doc.text(`Bar: ${compiler}`, 14, 35);
 
   let y = 44;
+  let grandTotal = 0;
   state.departments.forEach((dept) => {
     const rows = [];
     dept.products.forEach((p) => {
@@ -610,6 +634,9 @@ async function generatePDF() {
     });
     if (rows.length === 0) return;
 
+    const deptTot = rows.reduce((s, r) => s + Number(r[1]), 0);
+    grandTotal += deptTot;
+
     if (y > 250) { doc.addPage(); y = 20; }
     doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
@@ -618,14 +645,22 @@ async function generatePDF() {
       startY: y + 3,
       head: [["Prodotto", "Quantità", "Unità"]],
       body: rows,
+      foot: [["Totale reparto", String(deptTot), ""]],
       theme: "grid",
       headStyles: { fillColor: [230, 57, 70], fontSize: 10 },
+      footStyles: { fillColor: [40, 40, 55], textColor: 255, fontStyle: "bold", fontSize: 10 },
       styles: { fontSize: 10, cellPadding: 2.5 },
       columnStyles: { 1: { halign: "center", cellWidth: 28 }, 2: { cellWidth: 30 } },
       margin: { left: 14, right: 14 },
     });
     y = doc.lastAutoTable.finalY + 12;
   });
+
+  // Totale complessivo dell'ordine
+  if (y > 265) { doc.addPage(); y = 20; }
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text(`TOTALE ORDINE: ${grandTotal} pezzi`, 14, y);
 
   const iso = today.toISOString().slice(0, 10);
   const filename = `ordine-send-${iso}.pdf`;
